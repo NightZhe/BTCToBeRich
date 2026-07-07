@@ -23,11 +23,10 @@ worktree，全部基於 main 的 bae8479：
 ### 2. 這個環境沒有安全網，你的謹慎就是唯一的安全網
 - 全域設定是 `bypassPermissions`：除了 deny list 擋下的少數毀滅性指令
   （rm -rf、git push --force、sudo 等），你發的每個指令都直接執行，沒有人審。
-- `~/harryaiagent` 頂層**不是 git repo**（只有 singapp 等子專案各自是）。
-  CLAUDE.md 和 .claude/rules/ 沒有版本控制，唯一的保險是 `.claude/backups/`。
-  → 所以改檔前備份不是儀式，是真的唯一防線。
-  → 可以向使用者提議把制度檔納入 git（在 harryaiagent 頂層 git init 或另建 repo），
-    這是 B 級變更，先問。
+- `~/harryaiagent` 頂層已於 2026-07-07 經使用者同意 git init（root commit 83ab844），
+  只追蹤 CLAUDE.md 與 .claude/；子專案（各自是獨立 repo）、settings.local.json、
+  **profile.md（敏感）** 都在 .gitignore 裡，不要把它們 add 進來。
+  → 改規則檔後記得 commit（本地即可，沒有 remote）；改前備份到 backups/ 的規則照舊。
 - 使用者對「亂寫」零容忍，曾明確糾正過。查不到就說查不到，這比什麼都重要。
 
 ### 3. 讀懂這位使用者，回覆方式比內容更容易失分
