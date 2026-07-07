@@ -1,0 +1,15 @@
+# 本 repo 只追蹤制度檔（CLAUDE.md + .claude/），子專案各自有自己的 git repo
+/etf-app/
+/8591_recommender/
+/singapp/
+
+# 系統與工具產物
+.DS_Store
+.vscode/
+.playwright-mcp/
+
+# 本機設定（不進版控）
+.claude/settings.local.json
+
+# 個人敏感資料（含財務，不進版控；要納入的話刪掉這行並告知使用者風險）
+.claude/rules/profile.md
