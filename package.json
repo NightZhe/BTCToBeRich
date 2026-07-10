@@ -1,0 +1,16 @@
+{
+  "name": "btc-v-reversal-monitor",
+  "version": "1.0.0",
+  "description": "監控幣安 BTCUSDT 5 分 K，偵測 V 型底部反轉訊號並透過 Telegram 推播提醒",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node src/monitor.js",
+    "backtest": "node src/backtest.js"
+  },
+  "dependencies": {},
+  "devDependencies": {},
+  "license": "UNLICENSED"
+}

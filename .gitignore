@@ -13,3 +13,8 @@
 
 # 個人敏感資料（含財務，不進版控；要納入的話刪掉這行並告知使用者風險）
 .claude/rules/profile.md
+
+# 執行環境與日誌（含 Telegram token，絕不進版控）
+.env
+monitor.log
+node_modules/
