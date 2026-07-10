@@ -33,13 +33,17 @@ function condClass(pass) {
 }
 
 /** 狀態卡 HTML（最新價格與三條件），/partial 也會用。 */
-function buildStatusCardHtml(latest) {
+function buildStatusCardHtml(latest, lastHeartbeatAt) {
   if (!latest) {
     return `<div class="card"><p class="muted">尚無檢查紀錄，稍後重新整理再看</p></div>`;
   }
+  const heartbeatLine = lastHeartbeatAt
+    ? `<div class="muted">監控心跳：${esc(formatTaipeiTime(lastHeartbeatAt))}（每 60 秒檢查一次）</div>`
+    : '';
   return `<div class="card">
         <div class="price">${latest.price.toFixed(2)} <span class="unit">USDT</span></div>
-        <div class="muted">最後檢查：${esc(formatTaipeiTime(latest.time))}（台北時間）</div>
+        <div class="muted">最新 5 分 K 收盤：${esc(formatTaipeiTime(latest.time))}（每 5 分鐘更新一根，台北時間）</div>
+        ${heartbeatLine}
         <div class="conditions">
           <div class="cond ${condClass(latest.cond1.pass)}">
             <span class="mark">${condMark(latest.cond1.pass)}</span> 前置急跌
@@ -113,9 +117,9 @@ function buildChecksTableHtml(checks) {
 }
 
 function buildHtml() {
-  const { checks, signals } = getHistory();
+  const { checks, signals, lastHeartbeatAt } = getHistory();
   const latest = checks.length ? checks[checks.length - 1] : null;
-  const statusCard = buildStatusCardHtml(latest);
+  const statusCard = buildStatusCardHtml(latest, lastHeartbeatAt);
 
   return `<!doctype html>
 <html lang="zh-Hant">
@@ -207,12 +211,12 @@ function requestListener(req, res) {
   }
 
   if (url === '/partial' && req.method === 'GET') {
-    const { checks, signals } = getHistory();
+    const { checks, signals, lastHeartbeatAt } = getHistory();
     const latest = checks.length ? checks[checks.length - 1] : null;
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(
       JSON.stringify({
-        status: buildStatusCardHtml(latest),
+        status: buildStatusCardHtml(latest, lastHeartbeatAt),
         lists: buildListsHtml(signals, checks),
       })
     );

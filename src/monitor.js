@@ -27,6 +27,7 @@ async function checkOnce() {
   const window = closed.slice(-DETECT_WINDOW);
 
   const result = detect(window);
+  history.setHeartbeat();
 
   if (result.insufficientData) {
     console.log(`[monitor] 資料不足（僅 ${window.length} 根），等待下一輪。`);

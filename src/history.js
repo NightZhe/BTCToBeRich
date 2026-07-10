@@ -10,6 +10,12 @@ const MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24 小時
 
 let checks = [];
 let signals = [];
+let lastHeartbeatAt = null; // 監控迴圈最後一次成功檢查的牆上時鐘時間
+
+/** 每次檢查成功時呼叫，讓儀表板能顯示「監控活著」。 */
+function setHeartbeat(t = Date.now()) {
+  lastHeartbeatAt = t;
+}
 
 /**
  * 把 detector.js 回傳的 result 轉成給儀表板用的精簡格式。
@@ -36,7 +42,14 @@ function pruneOld(list, now = Date.now()) {
 }
 
 function addCheck(result) {
-  checks.push(toEntry(result));
+  const entry = toEntry(result);
+  const last = checks[checks.length - 1];
+  // 每 60 秒檢查一次但 5 分 K 才換一根：同一根 K 覆蓋最後一筆，不重複累積
+  if (last && last.time === entry.time) {
+    checks[checks.length - 1] = entry;
+  } else {
+    checks.push(entry);
+  }
   pruneOld(checks);
 }
 
@@ -48,7 +61,15 @@ function addSignal(result) {
 function getHistory() {
   pruneOld(checks);
   pruneOld(signals);
-  return { checks, signals };
+  return { checks, signals, lastHeartbeatAt };
 }
 
-module.exports = { addCheck, addSignal, getHistory, pruneOld, toEntry, MAX_AGE_MS };
+module.exports = {
+  addCheck,
+  addSignal,
+  getHistory,
+  setHeartbeat,
+  pruneOld,
+  toEntry,
+  MAX_AGE_MS,
+};
