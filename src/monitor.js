@@ -3,6 +3,8 @@
 const { fetchKlines } = require('./binance');
 const { detect } = require('./detector');
 const { notifySignal, formatTaipeiTime } = require('./notify');
+const history = require('./history');
+const { startServer } = require('./server');
 
 const SYMBOL = 'BTCUSDT';
 const INTERVAL = '5m';
@@ -40,6 +42,8 @@ async function checkOnce() {
       `MACD翻正=${cond3.pass ? '✓' : '✗'}(hist=${cond3.hist.toFixed(4)})`
   );
 
+  history.addCheck(result);
+
   if (result.triggered) {
     const cooledDown =
       lastTriggerCloseTime === null ||
@@ -49,6 +53,7 @@ async function checkOnce() {
       console.log(`[monitor] >>> 觸發 V 型底部反轉訊號！送出通知。`);
       await notifySignal(result);
       lastTriggerCloseTime = result.closeTime;
+      history.addSignal(result);
     } else {
       console.log(`[monitor] 訊號成立但仍在冷卻期內，不重複通知。`);
     }
@@ -64,6 +69,8 @@ async function sleep(ms) {
 async function main() {
   console.log(`[monitor] 啟動 BTC V 型底部反轉監控（symbol=${SYMBOL}, interval=${INTERVAL}）`);
   console.log(`[monitor] 每 ${POLL_INTERVAL_MS / 1000} 秒檢查一次，冷卻 ${COOLDOWN_MS / 60000} 分鐘。`);
+
+  startServer();
 
   try {
     await checkOnce();

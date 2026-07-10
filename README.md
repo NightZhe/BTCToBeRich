@@ -49,7 +49,9 @@ src/indicators.js   SMA / EMA / MACD 純數學計算
 src/binance.js      幣安公開 API 封裝（抓即時 K 線 + 分頁抓歷史區間）
 src/detector.js      V 型反轉三條件判斷
 src/notify.js        Telegram 推播（沒設環境變數就 fallback 成 console）
-src/monitor.js       主迴圈：每 60 秒抓一次資料、判斷、管理冷卻、通知
+src/history.js       網頁儀表板用的記憶體歷程儲存（24 小時自動剪裁）
+src/server.js        內建 http server，提供 /、/api/history、/healthz
+src/monitor.js       主迴圈：每 60 秒抓一次資料、判斷、管理冷卻、通知、記歷程
 src/backtest.js      回測工具：模擬歷史區間逐根檢查
 ```
 
@@ -132,6 +134,43 @@ node src/backtest.js 2026-07-04 2026-07-08
 
 [backtest] 總訊號數：3
 ```
+
+## 網頁儀表板
+
+`src/monitor.js` 啟動時會同時起一個 Node 內建 http server（不裝任何套件），
+提供手機/電腦瀏覽器看的儀表板，方便確認「監控有沒有在動、最近檢查了什麼、
+觸發過什麼訊號」。歷程只存在記憶體，只保留最近 24 小時，程式重啟即歸零。
+
+- `GET /`：深色系 HTML 頁面，內容包含最新收盤價、最後檢查時間、三條件目前的
+  ✓/✗ 與數值、過去 24 小時觸發過的訊號清單、24 小時價格走勢的折線圖、最近 30
+  筆檢查紀錄表格。頁面每 60 秒自動重新整理（`<meta http-equiv="refresh">`）。
+- `GET /api/history`：目前歷程的 JSON（`{ checks: [...], signals: [...] }`），
+  給以後要擴充用。
+- `GET /healthz`：回 200，給部署平台的健康檢查用。
+
+Port 讀環境變數 `PORT`，沒設定時本機預設 `3000`：
+
+```bash
+PORT=3000 node src/monitor.js
+```
+
+啟動後開瀏覽器看 `http://localhost:3000/`。
+
+## 部署到 Railway
+
+不需要 Dockerfile，Railway 會自動偵測這是 Node 專案並執行 `npm start`
+（= `node src/monitor.js`）。部署前注意：
+
+1. **環境變數**：在 Railway 專案的 Variables 設定：
+   - `TELEGRAM_BOT_TOKEN`
+   - `TELEGRAM_CHAT_ID`
+   兩個都設定才會真的推播；沒設定程式不會 crash，只會 fallback 印到 log（見上方
+   「設定 Telegram」章節如何取得這兩個值）。
+2. **PORT**：Railway 會自動注入 `PORT` 環境變數，`src/server.js` 已經讀
+   `process.env.PORT`，不用手動設定。
+3. **不要設定 `.env` 檔**：Railway 上用它的環境變數介面設定，不要把 `.env`
+   commit 上去（`.gitignore` 已排除）。
+4. 部署後打開 Railway 配的網址即可看到儀表板；`/healthz` 可以拿去設健康檢查。
 
 ## 已知限制
 
