@@ -32,42 +32,38 @@ function condClass(pass) {
   return pass ? 'ok' : 'no';
 }
 
-/** 用 checks 陣列（由舊到新）畫一個簡單的 inline SVG 折線圖。 */
-function buildSvgChart(checks) {
-  const W = 640;
-  const H = 180;
-  const PAD = 10;
-
-  if (!checks || checks.length < 2) {
-    return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" class="chart">
-      <text x="${W / 2}" y="${H / 2}" text-anchor="middle" class="chart-empty">資料收集中，稍後再看</text>
-    </svg>`;
+/** 狀態卡 HTML（最新價格與三條件），/partial 也會用。 */
+function buildStatusCardHtml(latest) {
+  if (!latest) {
+    return `<div class="card"><p class="muted">尚無檢查紀錄，稍後重新整理再看</p></div>`;
   }
+  return `<div class="card">
+        <div class="price">${latest.price.toFixed(2)} <span class="unit">USDT</span></div>
+        <div class="muted">最後檢查：${esc(formatTaipeiTime(latest.time))}（台北時間）</div>
+        <div class="conditions">
+          <div class="cond ${condClass(latest.cond1.pass)}">
+            <span class="mark">${condMark(latest.cond1.pass)}</span> 前置急跌
+            <span class="val">跌幅 ${(latest.cond1.dropPct * 100).toFixed(2)}%</span>
+          </div>
+          <div class="cond ${condClass(latest.cond2.pass)}">
+            <span class="mark">${condMark(latest.cond2.pass)}</span> 站上均線
+            <span class="val">MA7 ${latest.cond2.ma7.toFixed(1)} / MA25 ${latest.cond2.ma25.toFixed(1)}</span>
+          </div>
+          <div class="cond ${condClass(latest.cond3.pass)}">
+            <span class="mark">${condMark(latest.cond3.pass)}</span> MACD翻正
+            <span class="val">柱狀圖 ${latest.cond3.hist.toFixed(4)}</span>
+          </div>
+        </div>
+      </div>`;
+}
 
-  const times = checks.map((c) => c.time);
-  const prices = checks.map((c) => c.price);
-  const minT = Math.min(...times);
-  const maxT = Math.max(...times);
-  const minP = Math.min(...prices);
-  const maxP = Math.max(...prices);
-  const spanT = maxT - minT || 1;
-  const spanP = maxP - minP || 1;
+/** 訊號清單＋檢查紀錄區塊 HTML，/partial 也會用。 */
+function buildListsHtml(signals, checks) {
+  return `<h2>過去 24 小時訊號</h2>
+  <div class="table-wrap">${buildSignalsHtml(signals)}</div>
 
-  const points = checks
-    .map((c) => {
-      const x = PAD + ((c.time - minT) / spanT) * (W - 2 * PAD);
-      const y = H - PAD - ((c.price - minP) / spanP) * (H - 2 * PAD);
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(' ');
-
-  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" class="chart">
-    <polyline points="${points}" fill="none" stroke="#4fd1c5" stroke-width="2" />
-    <text x="${PAD}" y="${H - 2}" class="chart-label">${esc(formatTaipeiTime(minT))}</text>
-    <text x="${W - PAD}" y="${H - 2}" text-anchor="end" class="chart-label">${esc(formatTaipeiTime(maxT))}</text>
-    <text x="${PAD}" y="14" class="chart-label">${maxP.toFixed(0)}</text>
-    <text x="${PAD}" y="${H - 14}" class="chart-label">${minP.toFixed(0)}</text>
-  </svg>`;
+  <h2>最近檢查紀錄</h2>
+  <div class="table-wrap">${buildChecksTableHtml(checks)}</div>`;
 }
 
 function buildSignalsHtml(signals) {
@@ -119,34 +115,13 @@ function buildChecksTableHtml(checks) {
 function buildHtml() {
   const { checks, signals } = getHistory();
   const latest = checks.length ? checks[checks.length - 1] : null;
-
-  const statusCard = latest
-    ? `<div class="card">
-        <div class="price">${latest.price.toFixed(2)} <span class="unit">USDT</span></div>
-        <div class="muted">最後檢查：${esc(formatTaipeiTime(latest.time))}（台北時間）</div>
-        <div class="conditions">
-          <div class="cond ${condClass(latest.cond1.pass)}">
-            <span class="mark">${condMark(latest.cond1.pass)}</span> 前置急跌
-            <span class="val">跌幅 ${(latest.cond1.dropPct * 100).toFixed(2)}%</span>
-          </div>
-          <div class="cond ${condClass(latest.cond2.pass)}">
-            <span class="mark">${condMark(latest.cond2.pass)}</span> 站上均線
-            <span class="val">MA7 ${latest.cond2.ma7.toFixed(1)} / MA25 ${latest.cond2.ma25.toFixed(1)}</span>
-          </div>
-          <div class="cond ${condClass(latest.cond3.pass)}">
-            <span class="mark">${condMark(latest.cond3.pass)}</span> MACD翻正
-            <span class="val">柱狀圖 ${latest.cond3.hist.toFixed(4)}</span>
-          </div>
-        </div>
-      </div>`
-    : `<div class="card"><p class="muted">尚無檢查紀錄，稍後重新整理再看</p></div>`;
+  const statusCard = buildStatusCardHtml(latest);
 
   return `<!doctype html>
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta http-equiv="refresh" content="60" />
 <title>BTC V 型底部反轉監控</title>
 <style>
   :root { color-scheme: dark; }
@@ -174,27 +149,49 @@ function buildHtml() {
   th { color: #94a3b8; font-weight: 500; }
   td.ok { color: #4ade80; }
   td.no { color: #f87171; }
-  .chart { width: 100%; height: auto; background: #1e293b; border-radius: 12px; }
-  .chart-label { fill: #94a3b8; font-size: 10px; }
-  .chart-empty { fill: #94a3b8; font-size: 12px; }
+  .tv-wrap { height: 460px; background: #1e293b; border-radius: 12px; overflow: hidden; }
   .table-wrap { overflow-x: auto; background: #1e293b; border-radius: 12px; padding: 8px 4px; }
   footer { margin-top: 24px; color: #64748b; font-size: 0.75rem; text-align: center; }
 </style>
 </head>
 <body>
   <h1>BTC V 型底部反轉監控</h1>
-  ${statusCard}
+  <div id="status">${statusCard}</div>
 
-  <h2>過去 24 小時訊號</h2>
-  <div class="table-wrap">${buildSignalsHtml(signals)}</div>
+  <h2>即時 K 線（幣安 BTCUSDT・TradingView）</h2>
+  <div class="tv-wrap">
+    <div id="tvchart" style="height:100%"></div>
+  </div>
 
-  <h2>24 小時價格走勢</h2>
-  ${buildSvgChart(checks)}
+  <div id="lists">${buildListsHtml(signals, checks)}</div>
 
-  <h2>最近檢查紀錄</h2>
-  <div class="table-wrap">${buildChecksTableHtml(checks)}</div>
+  <footer>監控資料每 60 秒自動更新（圖表為 TradingView 即時串流）</footer>
 
-  <footer>每 60 秒自動重新整理</footer>
+  <script src="https://s3.tradingview.com/tv.js"></script>
+  <script>
+    new TradingView.widget({
+      container_id: 'tvchart',
+      autosize: true,
+      symbol: 'BINANCE:BTCUSDT',
+      interval: '5',
+      timezone: 'Asia/Taipei',
+      theme: 'dark',
+      style: '1',
+      locale: 'zh_TW',
+      hide_top_toolbar: false,
+      allow_symbol_change: false,
+    });
+
+    setInterval(async () => {
+      try {
+        const res = await fetch('/partial');
+        if (!res.ok) return;
+        const d = await res.json();
+        document.getElementById('status').innerHTML = d.status;
+        document.getElementById('lists').innerHTML = d.lists;
+      } catch (e) { /* 網路暫時失敗就等下一輪 */ }
+    }, 60000);
+  </script>
 </body>
 </html>`;
 }
@@ -206,6 +203,19 @@ function requestListener(req, res) {
     const html = buildHtml();
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(html);
+    return;
+  }
+
+  if (url === '/partial' && req.method === 'GET') {
+    const { checks, signals } = getHistory();
+    const latest = checks.length ? checks[checks.length - 1] : null;
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(
+      JSON.stringify({
+        status: buildStatusCardHtml(latest),
+        lists: buildListsHtml(signals, checks),
+      })
+    );
     return;
   }
 
