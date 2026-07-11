@@ -13,6 +13,9 @@
 const http = require('http');
 const { getHistory } = require('./history');
 const { formatTaipeiTime } = require('./notify');
+const { DEFAULT_CONFIG } = require('./detector');
+
+const DROP_THRESHOLD_LABEL = `${(DEFAULT_CONFIG.dropThreshold * 100).toFixed(1)}%`;
 
 function esc(str) {
   return String(str).replace(/[&<>"']/g, (c) => ({
@@ -47,7 +50,7 @@ function buildStatusCardHtml(latest, lastHeartbeatAt) {
         <div class="conditions">
           <div class="cond ${condClass(latest.cond1.pass)}">
             <span class="mark">${condMark(latest.cond1.pass)}</span> 前置急跌
-            <span class="val">跌幅 ${(latest.cond1.dropPct * 100).toFixed(2)}%</span>
+            <span class="val">跌幅 ${(latest.cond1.dropPct * 100).toFixed(2)}%（門檻 ${DROP_THRESHOLD_LABEL}）</span>
           </div>
           <div class="cond ${condClass(latest.cond2.pass)}">
             <span class="mark">${condMark(latest.cond2.pass)}</span> 站上均線
@@ -104,14 +107,14 @@ function buildChecksTableHtml(checks) {
       (c) => `<tr>
         <td>${esc(formatTaipeiTime(c.time))}</td>
         <td>${c.price.toFixed(2)}</td>
-        <td class="${condClass(c.cond1.pass)}">${condMark(c.cond1.pass)}</td>
+        <td class="${condClass(c.cond1.pass)}">${condMark(c.cond1.pass)} ${(c.cond1.dropPct * 100).toFixed(2)}%</td>
         <td class="${condClass(c.cond2.pass)}">${condMark(c.cond2.pass)}</td>
         <td class="${condClass(c.cond3.pass)}">${condMark(c.cond3.pass)}</td>
       </tr>`
     )
     .join('\n');
   return `<table>
-    <thead><tr><th>時間</th><th>價格</th><th>急跌</th><th>站上均線</th><th>MACD翻正</th></tr></thead>
+    <thead><tr><th>時間</th><th>價格</th><th>急跌（門檻 ${DROP_THRESHOLD_LABEL}）</th><th>站上均線</th><th>MACD翻正</th></tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
 }
