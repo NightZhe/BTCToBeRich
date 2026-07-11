@@ -9,7 +9,7 @@ const { sma, macd } = require('./indicators');
 const DEFAULT_CONFIG = {
   dropLookbackHigh: 24, // 找前置高點的視窗（24 根 = 2 小時）
   dropLookbackLow: 12, // 找急跌後低點的視窗（12 根 = 1 小時）
-  dropThreshold: 0.01, // 高到低跌幅門檻 1%
+  dropThreshold: 0.006, // 高到低跌幅門檻 0.6%（2026-07-11 依使用者選擇由 1% 調降，為抓淺 V）
   maFast: 7, // MA7
   maSlow: 25, // MA25
   macdFast: 12,
