@@ -68,33 +68,43 @@ async function sleep(ms) {
 }
 
 /**
- * 啟動回補：抓過去 30 天 K 線重算歷史訊號，填進儀表板的訊號清單。
- * 訊號由 K 線數據決定，可重算，所以不需要持久化儲存；重啟後照樣有 30 天歷史。
- * 只填清單、不發通知；同時把冷卻基準對齊最後一筆歷史訊號。
+ * 啟動回補：抓過去 30 天 K 線重算歷史，填進儀表板的訊號清單（30 天）與
+ * 檢查紀錄（7 天）。兩者都由 K 線數據決定、可重算，所以不需要持久化儲存，
+ * 重啟後照樣有完整歷史。只填清單、不發通知；冷卻基準對齊最後一筆歷史訊號。
  */
-async function backfillSignals() {
-  const days = history.SIGNAL_MAX_AGE_MS / (24 * 60 * 60 * 1000);
-  const from = Date.now() - history.SIGNAL_MAX_AGE_MS;
+async function backfillHistory() {
+  const signalDays = history.SIGNAL_MAX_AGE_MS / (24 * 60 * 60 * 1000);
+  const checkDays = history.CHECK_MAX_AGE_MS / (24 * 60 * 60 * 1000);
+  const now = Date.now();
+  const from = now - history.SIGNAL_MAX_AGE_MS;
+  const checksFrom = now - history.CHECK_MAX_AGE_MS;
   const warmupMs = 24 * 60 * 60 * 1000; // 多抓 1 天暖機算指標
   const candles = onlyClosedCandles(
     await fetchKlines({ symbol: SYMBOL, interval: INTERVAL, startTime: from - warmupMs })
   );
 
-  const seeded = [];
+  const seededSignals = [];
+  const seededChecks = [];
   let lastTrigger = null;
   for (let i = 0; i < candles.length; i++) {
     if (candles[i].closeTime < from) continue;
     const window = candles.slice(Math.max(0, i - DETECT_WINDOW + 1), i + 1);
     const result = detect(window);
-    if (result.insufficientData || !result.triggered) continue;
+    if (result.insufficientData) continue;
+    if (result.closeTime >= checksFrom) seededChecks.push(result);
+    if (!result.triggered) continue;
     if (lastTrigger !== null && result.closeTime - lastTrigger < COOLDOWN_MS) continue;
     lastTrigger = result.closeTime;
-    seeded.push(result);
+    seededSignals.push(result);
   }
 
-  history.seedSignals(seeded);
+  history.seedSignals(seededSignals);
+  history.seedChecks(seededChecks);
   if (lastTrigger !== null) lastTriggerCloseTime = lastTrigger;
-  console.log(`[monitor] 已回補過去 ${days} 天歷史訊號 ${seeded.length} 筆。`);
+  console.log(
+    `[monitor] 已回補歷史：訊號 ${seededSignals.length} 筆（${signalDays} 天）、` +
+      `檢查紀錄 ${seededChecks.length} 筆（${checkDays} 天）。`
+  );
 }
 
 async function main() {
@@ -104,9 +114,9 @@ async function main() {
   startServer();
 
   try {
-    await backfillSignals();
+    await backfillHistory();
   } catch (err) {
-    console.error('[monitor] 歷史訊號回補失敗（不影響即時監控）：', err.message);
+    console.error('[monitor] 歷史回補失敗（不影響即時監控）：', err.message);
   }
 
   try {

@@ -6,7 +6,7 @@
  * 不影響 detector/notify 的判斷與通知邏輯，純粹是「記錄」用途。
  */
 
-const CHECK_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 檢查紀錄保留 24 小時
+const CHECK_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 檢查紀錄保留 7 天（重啟由回補重建）
 const SIGNAL_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 訊號保留 30 天（重啟由回補重建）
 
 let checks = [];
@@ -65,6 +65,12 @@ function seedSignals(results) {
   pruneOld(signals, Date.now(), SIGNAL_MAX_AGE_MS);
 }
 
+/** 啟動回補用：用重算出來的歷史檢查結果整批取代目前清單（由舊到新）。 */
+function seedChecks(results) {
+  checks = results.map(toEntry);
+  pruneOld(checks, Date.now(), CHECK_MAX_AGE_MS);
+}
+
 function getHistory() {
   pruneOld(checks, Date.now(), CHECK_MAX_AGE_MS);
   pruneOld(signals, Date.now(), SIGNAL_MAX_AGE_MS);
@@ -75,6 +81,7 @@ module.exports = {
   addCheck,
   addSignal,
   seedSignals,
+  seedChecks,
   getHistory,
   setHeartbeat,
   pruneOld,
