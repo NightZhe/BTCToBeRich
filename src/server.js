@@ -66,7 +66,7 @@ function buildStatusCardHtml(latest, lastHeartbeatAt) {
 
 /** 訊號清單＋檢查紀錄區塊 HTML，/partial 也會用。 */
 function buildListsHtml(signals, checks) {
-  return `<h2>過去 24 小時訊號</h2>
+  return `<h2>過去 30 天訊號</h2>
   <div class="table-wrap">${buildSignalsHtml(signals)}</div>
 
   <h2>最近檢查紀錄</h2>
@@ -75,7 +75,7 @@ function buildListsHtml(signals, checks) {
 
 function buildSignalsHtml(signals) {
   if (!signals || signals.length === 0) {
-    return '<p class="muted">過去 24 小時無訊號</p>';
+    return '<p class="muted">過去 30 天無訊號</p>';
   }
   const rows = signals
     .slice()

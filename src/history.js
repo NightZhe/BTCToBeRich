@@ -6,7 +6,8 @@
  * 不影響 detector/notify 的判斷與通知邏輯，純粹是「記錄」用途。
  */
 
-const MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24 小時
+const CHECK_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 檢查紀錄保留 24 小時
+const SIGNAL_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 訊號保留 30 天（重啟由回補重建）
 
 let checks = [];
 let signals = [];
@@ -32,9 +33,9 @@ function toEntry(result) {
   };
 }
 
-/** 剪掉 now - MAX_AGE_MS 之前的紀錄。獨立成函式方便單獨測試。 */
-function pruneOld(list, now = Date.now()) {
-  const cutoff = now - MAX_AGE_MS;
+/** 剪掉 now - maxAge 之前的紀錄。獨立成函式方便單獨測試。 */
+function pruneOld(list, now = Date.now(), maxAge = CHECK_MAX_AGE_MS) {
+  const cutoff = now - maxAge;
   let start = 0;
   while (start < list.length && list[start].time < cutoff) start++;
   if (start > 0) list.splice(0, start);
@@ -50,26 +51,34 @@ function addCheck(result) {
   } else {
     checks.push(entry);
   }
-  pruneOld(checks);
+  pruneOld(checks, Date.now(), CHECK_MAX_AGE_MS);
 }
 
 function addSignal(result) {
   signals.push(toEntry(result));
-  pruneOld(signals);
+  pruneOld(signals, Date.now(), SIGNAL_MAX_AGE_MS);
+}
+
+/** 啟動回補用：用重算出來的歷史訊號整批取代目前清單（由舊到新）。 */
+function seedSignals(results) {
+  signals = results.map(toEntry);
+  pruneOld(signals, Date.now(), SIGNAL_MAX_AGE_MS);
 }
 
 function getHistory() {
-  pruneOld(checks);
-  pruneOld(signals);
+  pruneOld(checks, Date.now(), CHECK_MAX_AGE_MS);
+  pruneOld(signals, Date.now(), SIGNAL_MAX_AGE_MS);
   return { checks, signals, lastHeartbeatAt };
 }
 
 module.exports = {
   addCheck,
   addSignal,
+  seedSignals,
   getHistory,
   setHeartbeat,
   pruneOld,
   toEntry,
-  MAX_AGE_MS,
+  CHECK_MAX_AGE_MS,
+  SIGNAL_MAX_AGE_MS,
 };

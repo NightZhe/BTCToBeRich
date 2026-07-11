@@ -67,11 +67,47 @@ async function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * 啟動回補：抓過去 30 天 K 線重算歷史訊號，填進儀表板的訊號清單。
+ * 訊號由 K 線數據決定，可重算，所以不需要持久化儲存；重啟後照樣有 30 天歷史。
+ * 只填清單、不發通知；同時把冷卻基準對齊最後一筆歷史訊號。
+ */
+async function backfillSignals() {
+  const days = history.SIGNAL_MAX_AGE_MS / (24 * 60 * 60 * 1000);
+  const from = Date.now() - history.SIGNAL_MAX_AGE_MS;
+  const warmupMs = 24 * 60 * 60 * 1000; // 多抓 1 天暖機算指標
+  const candles = onlyClosedCandles(
+    await fetchKlines({ symbol: SYMBOL, interval: INTERVAL, startTime: from - warmupMs })
+  );
+
+  const seeded = [];
+  let lastTrigger = null;
+  for (let i = 0; i < candles.length; i++) {
+    if (candles[i].closeTime < from) continue;
+    const window = candles.slice(Math.max(0, i - DETECT_WINDOW + 1), i + 1);
+    const result = detect(window);
+    if (result.insufficientData || !result.triggered) continue;
+    if (lastTrigger !== null && result.closeTime - lastTrigger < COOLDOWN_MS) continue;
+    lastTrigger = result.closeTime;
+    seeded.push(result);
+  }
+
+  history.seedSignals(seeded);
+  if (lastTrigger !== null) lastTriggerCloseTime = lastTrigger;
+  console.log(`[monitor] 已回補過去 ${days} 天歷史訊號 ${seeded.length} 筆。`);
+}
+
 async function main() {
   console.log(`[monitor] 啟動 BTC V 型底部反轉監控（symbol=${SYMBOL}, interval=${INTERVAL}）`);
   console.log(`[monitor] 每 ${POLL_INTERVAL_MS / 1000} 秒檢查一次，冷卻 ${COOLDOWN_MS / 60000} 分鐘。`);
 
   startServer();
+
+  try {
+    await backfillSignals();
+  } catch (err) {
+    console.error('[monitor] 歷史訊號回補失敗（不影響即時監控）：', err.message);
+  }
 
   try {
     await checkOnce();
