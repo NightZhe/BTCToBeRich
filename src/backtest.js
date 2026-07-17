@@ -19,6 +19,40 @@ function taipeiMidnightMs(dateStr) {
   return ms;
 }
 
+/**
+ * 對一段已收盤 K 線（由舊到新）逐根跑偵測，含冷卻邏輯，
+ * 與 monitor.js 的實盤行為一致（DETECT_WINDOW / COOLDOWN_MS 相同）。
+ * 回傳的 entry 帶有觸發點在陣列中的位置，供 analyze.js 做後續走勢分析。
+ * @returns {{entries: Array<{result: object, index: number, windowStart: number}>, checkedCount: number}}
+ */
+function findSignals(closedCandles, startMs, endMsExclusive) {
+  const entries = [];
+  let lastTriggerCloseTime = null;
+  let checkedCount = 0;
+
+  for (let i = 0; i < closedCandles.length; i++) {
+    const candle = closedCandles[i];
+    // 只在目標區間內模擬檢查，暖機期間的 K 棒只拿來算指標，不當作檢查點
+    if (candle.closeTime < startMs || candle.closeTime >= endMsExclusive) continue;
+
+    checkedCount++;
+    const windowStart = Math.max(0, i - DETECT_WINDOW + 1);
+    const result = detect(closedCandles.slice(windowStart, i + 1));
+
+    if (result.insufficientData || !result.triggered) continue;
+
+    const cooledDown =
+      lastTriggerCloseTime === null ||
+      result.closeTime - lastTriggerCloseTime >= COOLDOWN_MS;
+    if (!cooledDown) continue;
+
+    entries.push({ result, index: i, windowStart });
+    lastTriggerCloseTime = result.closeTime;
+  }
+
+  return { entries, checkedCount };
+}
+
 async function runBacktest(startDateStr, endDateStr) {
   const startMs = taipeiMidnightMs(startDateStr);
   const endMsExclusive = taipeiMidnightMs(endDateStr); // 結束日（台北時間 00:00）為區間上界，不含當天
@@ -45,35 +79,9 @@ async function runBacktest(startDateStr, endDateStr) {
 
   console.log(`[backtest] 共取得 ${closedCandles.length} 根已收盤 K 棒（含暖機期間）。`);
 
-  const signals = [];
-  let lastTriggerCloseTime = null;
-  let checkedCount = 0;
+  const { entries, checkedCount } = findSignals(closedCandles, startMs, endMsExclusive);
 
-  for (let i = 0; i < closedCandles.length; i++) {
-    const candle = closedCandles[i];
-    // 只在目標區間內模擬檢查，暖機期間的 K 棒只拿來算指標，不當作檢查點
-    if (candle.closeTime < startMs || candle.closeTime >= endMsExclusive) continue;
-
-    checkedCount++;
-    const windowStart = Math.max(0, i - DETECT_WINDOW + 1);
-    const window = closedCandles.slice(windowStart, i + 1);
-    const result = detect(window);
-
-    if (result.insufficientData) continue;
-
-    if (result.triggered) {
-      const cooledDown =
-        lastTriggerCloseTime === null ||
-        result.closeTime - lastTriggerCloseTime >= COOLDOWN_MS;
-
-      if (cooledDown) {
-        signals.push(result);
-        lastTriggerCloseTime = result.closeTime;
-      }
-    }
-  }
-
-  return { signals, checkedCount };
+  return { signals: entries.map((e) => e.result), checkedCount };
 }
 
 function printReport(signals, checkedCount, startDateStr, endDateStr) {
@@ -118,4 +126,4 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { runBacktest };
+module.exports = { runBacktest, findSignals, taipeiMidnightMs };
